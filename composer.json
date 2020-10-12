@@ -1,0 +1,25 @@
+{
+    "name": "itisbean/weibohit",
+    "type": "library",
+    "description": "Hit the ranking for Weibo",
+    "keywords": ["weibo","hit","rank"],
+    "homepage": "https://github.com/itisbean/weibo-hit",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Dony Dou",
+            "email": "iamdonydou@gmail.com",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "php": ">=5.6.0",
+        "guzzlehttp/guzzle": "^6.5",
+        "phpseclib/phpseclib": "^2.0"
+    },
+    "autoload": {
+        "psr-0": {
+            "Weibohit\\": "src/"
+        }
+    }
+}
