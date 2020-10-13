@@ -73,6 +73,26 @@ class Weibohit {
             ]);
             $result = $response->getBody()->getContents();
             echo '3------'.$result."\n";
+
+            // 加油
+            $url = 'https://energy.tv.weibo.cn/aj/incrspt';
+            $response = $client->post($url, [
+                'headers' => [
+                    'Referer' => 'https://energy.tv.weibo.cn/e/10574/index',
+                    'User-Agent' => 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.99 Safari/537.36'
+                ],
+                'form_params' => [
+                    'eid' => '10574',
+                    'suid' => '1303977362',
+                    'spt' => '1',
+                    'send_wb' => '1',
+                    'send_text' => '@容祖儿  我在#我们的歌#嗨歌榜为你助力啦！22222222222222222222222222',
+                    'follow_uid' => '',
+                    'page_type' => 'tvenergy_index_star'
+                ]
+            ]);
+            $result = $response->getBody()->getContents();
+            echo '4------'.$result."\n";
         }
     }
 
