@@ -29,10 +29,9 @@ class Weibologin
      */
     protected $client;
 
-
-    public function _get($key)
+    public function __get($name)
     {
-        return isset($this->$key) ? $this->$key : null;
+        return isset($this->$name) ? $this->$name : null;
     }
 
     /**
@@ -55,7 +54,8 @@ class Weibologin
         $cookie = new FileCookieJar(__DIR__ . '/cookie_' . $userkey, true);
         $this->client = new Client([
             'headers' => [
-                'Referer' => 'https://weibo.com',
+                // 'Referer' => 'https://weibo.com',
+                'Referer' => 'https://mail.sina.com.cn/?from=mail',
                 'User-Agent' => 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.99 Safari/537.36'
             ],
             'cookies' => $cookie
@@ -82,44 +82,42 @@ class Weibologin
             'nonce' => $json['nonce'],
             'sp' => $this->getPassword($password, $json['servertime'], $json['nonce'], $json['pubkey']),
             'rsakv' => $json['rsakv'],
-            // 'entry' => 'sso',
-            'entry' => 'weibo',
+            // 'entry' => 'freemail',
+            'entry' => 'cnmail',
             'gateway' => '1',
             'from' => '',
-            // 'savestate' => '0',
-            'savestate' => '7',
+            'savestate' => '30',
             'qrcode_flag' => 'false',
-            // 'useticket' => '0',
-            'useticket' => '1',
-            'pagerefer' => "http://login.sina.com.cn/sso/logout.php?entry=miniblog&r=http%3A%2F%2Fweibo.com%2Flogout.php%3Fbackurl",
-            // 'pagerefer' => '',
+            'useticket' => '0',
+            'ssosimplelogin' => '1',
+            // 'pagerefer' => "http://login.sina.com.cn/sso/logout.php?entry=miniblog&r=http%3A%2F%2Fweibo.com%2Flogout.php%3Fbackurl",
             'vsnf' => '1',
-            // 'service' => 'sso',
-            'service' => 'miniblog',
+            // 'service' => 'miniblog',
+            'service' => 'sso',
             'pwencode' => 'rsa2',
             'sr' => '1920*1080',
             'encoding' => 'UTF-8',
             'cdult' => '3',
+            // 'domain' => '*.weibo.cn',
             'domain' => 'sina.com.cn',
-            'prelt' => '27',
-            // 'prelt' => '5109',
-            'url' => 'https://weibo.com/ajaxlogin.php?framelogin=1&callback=parent.sinaSSOController.feedBackUrlCallBack',
-            // 'returntype' => 'TEXT',
-            'returntype' => 'META',
+            'prelt' => '35',
+            // 'url' => 'https://weibo.com/ajaxlogin.php?framelogin=1&callback=parent.sinaSSOController.feedBackUrlCallBack',
+            'returntype' => 'TEXT',
+            // 'returntype' => 'META',
         ];
         $response = $this->client->post($url, ['form_params' => $params]);
         if ($response->getStatusCode() != 200) {
             throw new \Exception("login first request failed, http code: " . $response->getStatusCode());
         }
         $result = $response->getBody()->getContents();
-        
-        $pattern = '/\("(.*?)"\)/';
-        preg_match($pattern, $result, $matches);
-        if (!$matches) {
-            throw new \Exception('get redirect url failed, response content: '. $result);
+        $result = json_decode($result, true);
+        // $pattern = '/\("(.*?)"\)/';
+        // preg_match($pattern, $result, $matches);
+        if ($result['retcode'] != 0) {
+            throw new \Exception('get redirect url failed, response content: '. json_encode($result));
         }
 
-        return $matches[1];
+        return $result['crossDomainUrlList'][0];
     }
 
     private function loginSecond($url)
@@ -127,7 +125,6 @@ class Weibologin
         echo $url."\n";
         // 发起第二次登录请求，再次获取登录请求跳转页arrURL
         $response = $this->client->get($url);
-        echo $response->getBody()->getContents()."\n";die;
         $json = str_replace(['(', ')', ';'], '', $response->getBody()->getContents());
         return json_decode($json, true);
     }
@@ -158,7 +155,7 @@ class Weibologin
         $url = 'https://login.sina.com.cn/sso/prelogin.php';
         $timestamp = time() * 1000;
         $params = [
-            'entry' => 'weibo',
+            'entry' => 'cnmail',
             'callback' => 'sinaSSOController.preloginCallBack',
             'su' => $su,
             'rsakt' => 'mod',
