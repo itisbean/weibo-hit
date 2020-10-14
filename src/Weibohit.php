@@ -2,6 +2,8 @@
 
 namespace Weibohit;
 
+use GuzzleHttp\Client;
+
 class Weibohit
 {
 
@@ -36,17 +38,25 @@ class Weibohit
         $url = "https://energy.tv.weibo.cn/aj/checkspt?suid=" . $this->_getsuid() . "&eid=" . $this->_geteid();
         $response = $this->_loginClient->client->get($url, ['headers' => $this->header]);
         $result = $response->getBody()->getContents();
-        if ($result['code'] == '100000') {
+        $result = json_decode($result, true);
+        if ($result && $result['code'] == '100000') {
             $this->spt = $result['data'];
             return true;
         }
-        $this->spt = 0;
+        $this->spt = -1;
         return false;
     }
 
-    private function _return($code = 0, $data = [], $msg = '')
+    private function success($data = [])
     {
-        $return = json_encode(['code' => $code, 'data' => $data, 'msg' => $msg]);
+        $return = json_encode(['ret' => true, 'data' => $data], JSON_UNESCAPED_UNICODE);
+        echo $return . "\n";
+        return $return;
+    }
+
+    private function error($msg = '')
+    {
+        $return = json_encode(['ret' => false, 'msg' => $msg], JSON_UNESCAPED_UNICODE);
         echo $return . "\n";
         return $return;
     }
@@ -66,9 +76,35 @@ class Weibohit
         return isset($this->suid) ? $this->suid : 0;
     }
 
-    private function _getRandContent()
+    private function _getclient()
     {
-        return '@容祖儿 我在#我们的歌#嗨歌榜为你助力嗨歌值啦！ http://t.cn/A6bihmsX 1111111111111111111111111111111';
+        if ($this->_loginClient->client instanceof Client) {
+            return $this->_loginClient->client;
+        }
+        return new Client(['headers' => $this->header]);
+    }
+
+    private function _getheader($array = [])
+    {
+        $header = $this->header;
+        if ($array) {
+            foreach ($array as $key => $val) {
+                $header[$key] = $val;
+            }
+        }
+        return $header;
+    }
+
+    private function _getst()
+    {
+        $url = 'https://m.weibo.cn/api/config';
+        $response = $this->_getclient()->get($url);
+        $result = $response->getBody()->getContents();
+        $result = json_decode($result, true);
+        if (!$result || $result['ok'] != 1 || !$result['data']['login']) {
+            return false;
+        }
+        return $result['data']['st'];
     }
 
     /**
@@ -77,7 +113,7 @@ class Weibohit
      * @param integer $type 0.默认24小时 大于0为n天
      * @return array
      */
-    public function getRank($suid, $type = 0)
+    public function getRank($type = 0)
     {
         if ($type > 0) {
             // n天
@@ -99,99 +135,218 @@ class Weibohit
 
     /**
      * 送加油卡
+     * @param integer $num 送卡数量
      * @return bool
      */
-    public function incrspt()
+    public function incrspt($num = 1, $text = '')
     {
-        $client = $this->_loginClient->client;
-
-        $hitIndex = 'https://energy.tv.weibo.cn/e/10574/index';
-
-        $url = 'https://login.sina.com.cn/sso/login.php';
-        $params = [
-            'url' => $hitIndex,
-            '_rand' => '1602591493.2292',
-            'gateway' => 1,
-            'service' => 'weibo',
-            'entry' => 'miniblog',
-            'useticket' => '0',
-            'returntype' => 'META',
-            'sudaref' => '',
-            '_client_version' => '0.6.23'
-        ];
-        $url .= '?' . http_build_query($params);
-        $response = $client->get($url);
-        $result = $response->getBody()->getContents();
-        $pattern = '/\("(.*?)"\)/';
-        preg_match($pattern, $result, $matches);
-        if ($matches) {
-            $url = $matches[1];
-            echo '1------' . $url . "\n";
-            $response = $client->get($url);
-            $result = $response->getBody()->getContents();
-            // echo '2------'.$result."\n";
-            $url = 'https://energy.tv.weibo.cn/aj/checkspt?suid=1303977362&eid=10574';
-            $response = $client->get($url, [
-                'headers' => [
-                    'Referer' => 'https://energy.tv.weibo.cn/e/10574/index',
-                    'User-Agent' => 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.99 Safari/537.36'
-                ],
-            ]);
-            $result = $response->getBody()->getContents();
-            echo '3------' . $result . "\n";
-
-            // 加油
-            $url = 'https://energy.tv.weibo.cn/aj/incrspt';
-            $response = $client->post($url, [
-                'headers' => [
-                    'Referer' => 'https://energy.tv.weibo.cn/e/10574/index',
-                    'User-Agent' => 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.99 Safari/537.36'
-                ],
-                'form_params' => [
-                    'eid' => '10574',
-                    'suid' => '1303977362',
-                    'spt' => '1',
-                    'send_wb' => '1',
-                    'send_text' => '@容祖儿  我在#我们的歌#嗨歌榜为你助力啦！22222222222222222222222222',
-                    'follow_uid' => '',
-                    'page_type' => 'tvenergy_index_star'
-                ]
-            ]);
-            $result = $response->getBody()->getContents();
-            echo '4------' . $result . "\n";
+        if ($this->spt == -1 && !$this->_checkLogin()) {
+            $this->error('登录失败');
         }
+        if ($this->spt == 0) {
+            $this->error('今日加油卡已用完');
+        }
+
+        // 加油
+        $url = 'https://energy.tv.weibo.cn/aj/incrspt';
+        $params = [
+            'eid' => $this->_geteid(),
+            'suid' => $this->_getsuid(),
+            'spt' => $num > 0 ? $num : 1,
+            'send_wb' => '0',
+            'follow_uid' => '',
+            'page_type' => 'tvenergy_index_star'
+        ];
+        if ($text) {
+            $params['send_wb']  = '1';
+            $params['send_text'] = $text;
+        }
+        $response = $this->_getclient()->post($url, ['headers' => $this->_getheader(), 'form_params' => $params]);
+        $result = $response->getBody()->getContents();
+
+        if ($response->getStatusCode() != '200') {
+            return $this->error('request failed, content: ' . $result);
+        }
+        $result = json_decode($result, true);
+
+        if ($result['code'] != '100000') {
+            return $this->error($result['msg']);
+        }
+        return $this->success();
     }
 
-    public function post($text = '')
+    /**
+     * 发微博
+     * @return bool
+     */
+    public function post($text)
     {
-        $client = $this->_loginClient->client;
-
-        $text .= $this->_getRandContent(); 
+        $url = 'https://m.weibo.cn/mblog';
+        $ext = 'eid:' . $this->_geteid() . '|suid:' . $this->_getsuid() . '|from:tvenergy_index_star';
+        $params = [
+            'content' => $text,
+            'callback' => $this->energyUrl,
+            'luicode' => '40000095', // TODO
+            'extparam' => $ext,
+            'ext' => $ext
+        ];
+        $url .= '?' . http_build_query($params);
+        $response = $this->_getclient()->get($url);
+        $result = $response->getBody()->getContents();
+        $st = substr($result, strpos($result, '"st":'), 13);
+        $st = str_replace(['st', ',', ':', '"'], '', $st);
+        if (!$st) {
+            return $this->error('get st failed.');
+        }
 
         $url = "https://m.weibo.cn/mblogDeal/addAMblog";
         $params = [
             'content' => $text,
-            'annotations' => ['source' => ['name' => 'tv_energy', 'appid' => '3059977073', 'url' => $this->energyUrl]],
-            'st' => 'a0a4cd'
+            'annotations' => [
+                'source' => ['name' => 'tv_energy', 'appid' => '3059977073', 'url' => $this->energyUrl]
+            ],
+            'st' => $st
         ];
-        $response = $client->post($url, ['form_params' => $params]);
+        $response = $this->_getclient()->post($url, [
+            'form_params' => $params
+        ]);
         $result = $response->getBody()->getContents();
 
-        if ($response->getStatusCode() != 200 ) {
-            
+        if ($response->getStatusCode() != '200') {
+            return $this->error('request failed, content: ' . $result);
         }
-        echo '2------ ' . $result . "\n";
+        $result = json_decode($result, true);
+
+        if ($result['ok'] != 1) {
+            return $this->error($result['msg']);
+        }
+        return $this->success($result['id']);
     }
 
-    public function repost()
+    /**
+     * 转发
+     * @return void
+     */
+    public function repost($mid, $text = '')
+    {
+        $url = 'https://energy.tv.weibo.cn/aj/repost';
+
+        $eid = $this->_geteid();
+        $suid = $this->_getsuid();
+        $params = [
+            'mid' => $mid,
+            'text' => $text,
+            'follow' => '',
+            'eid' => $eid,
+            'suid' => $suid,
+            'page_type' => 'tvenergy_index_star'
+        ];
+
+        $referer = "https://energy.tv.weibo.cn/repost?eid={$eid}&suid={$suid}&page_type=tvenergy_index_star";
+        $response = $this->_getclient()->post($url, [
+            'headers' => $this->_getheader(['Referer' => $referer]),
+            'form_params' => $params
+        ]);
+        $result = $response->getBody()->getContents();
+
+        if ($response->getStatusCode() != '200') {
+            return $this->error('request failed, content: ' . $result);
+        }
+        $result = json_decode($result, true);
+
+        if ($result['code'] != '100000') {
+            return $this->error($result['msg']);
+        }
+        return $this->success();
+    }
+
+    /**
+     * 评论帖子
+     * @return void
+     */
+    public function comment($mid, $text = '', $forward = 0)
+    {
+        // $url = "https://weibo.com/aj/v6/comment/add?ajwvr=6&__rnd=1602694412076";
+        $st = $this->_getst();
+        if (!$st) {
+            return $this->error('get st failed.');
+        }
+
+        $url = 'https://m.weibo.cn/api/comments/create';
+        $response = $this->_getclient()->post($url, [
+            'form_params' => [
+                'mid' => $mid,
+                'content' => $text,
+                'st' => $st
+            ]
+        ]);
+        $result = $response->getBody()->getContents();
+
+        if ($response->getStatusCode() != '200') {
+            return $this->error('request failed, content: ' . $result);
+        }
+        $result = json_decode($result, true);
+
+        if ($result['ok'] != 1) {
+            return $this->error($result['msg']);
+        }
+        $data = $result['data'];
+        return $this->success([
+            'id' => $data['id'],
+            'created_at' => strtotime($data['created_at']),
+            'user' => [
+                'id' => $data['user']['id'],
+                'screen_name' => $data['user']['screen_name']
+            ]
+        ]);
+    }
+
+    public function like($mid)
     {
     }
 
-    public function comment()
+    public function getTvinfo($tvurl)
     {
+        $basename = pathinfo($tvurl)['basename'];
+        $oid = explode('?', $basename)[0];
+        $url = "https://weibo.com/tv/api/component?page=/tv/show/" . $oid;
+
+        $response = $this->_getclient()->post($url, [
+            'headers' => $this->_getheader(['Referer' => $tvurl]),
+            'form_params' => [
+                'data' => '{"Component_Play_Playinfo":{"oid":' . $oid . '}}'
+            ]
+        ]);
+
+        $result = $response->getBody()->getContents();
+        if ($response->getStatusCode() != '200') {
+            return $this->error('request failed, content: ' . $result);
+        }
+        $result = json_decode($result, true);
+
+        if ($result['code'] != '100000') {
+            return $this->error($result['msg']);
+        }
+        $data = $result['data']['Component_Play_Playinfo'];
+        return $this->success([
+            'attitudes_count' => $data['attitudes_count'],
+            'comments_count' => $data['comments_count'],
+            'duration_time' => $data['duration_time'],
+            'mid' => $data['mid'],
+            'oid' => $data['oid'],
+            'play_count' => $data['play_count'],
+            'reposts_count' => $data['reposts_count'],
+            'title' => $data['title']
+        ]);
     }
 
-    public function like()
+    public function getSelf()
     {
+        $userinfo = $this->_loginClient->userinfo;
+        if (!$userinfo) {
+            $this->_loginClient->login($this->password);
+            $userinfo = $this->_loginClient->userinfo;
+        }
+        return $this->success($userinfo);
     }
 }

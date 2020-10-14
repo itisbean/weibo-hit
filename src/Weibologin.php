@@ -27,7 +27,7 @@ class Weibologin
     /**
      * @var string|null
      */
-    protected $uid;
+    protected $userinfo;
 
     /**
      * @var Client|null
@@ -71,10 +71,10 @@ class Weibologin
     {
         // 邮箱登录->微博登录->带登录信息进入能量榜
         $predata = $this->getPrelogindata($this->_userkey);
-        echo json_encode($predata) . "\n";
+        // echo json_encode($predata) . "\n";
         $loginUrl = $this->loginFirst($predata, $password);
         $userinfo = $this->loginSecond($loginUrl);
-        $this->uid = $userinfo['userinfo']['uniqueid'];
+        $this->userinfo = $userinfo['userinfo'];
         if ($energyUrl) {
             $this->loginEnergy($energyUrl);
         }
@@ -104,7 +104,7 @@ class Weibologin
             $url = $matches[1];
             $response = $this->client->get($url);
             $result = ['code' => $response->getStatusCode(),'content'=>$response->getBody()->getContents()];
-            echo json_encode($result)."\n";
+            // echo json_encode($result)."\n";
         }
     }
 
@@ -151,7 +151,7 @@ class Weibologin
     {
         // 发起第二次登录请求，再次获取登录请求跳转页arrURL
         $response = $this->client->get($url);
-        echo $response->getBody()->getContents()."\n";
+        // echo $response->getBody()->getContents()."\n";
         $json = str_replace(['(', ')', ';'], '', $response->getBody()->getContents());
         return json_decode($json, true);
     }
