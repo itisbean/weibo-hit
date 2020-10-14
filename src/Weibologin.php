@@ -25,6 +25,11 @@ class Weibologin
     protected $_userkey;
 
     /**
+     * @var string|null
+     */
+    protected $uid;
+
+    /**
      * @var Client|null
      */
     protected $client;
@@ -51,10 +56,9 @@ class Weibologin
     protected function __construct($userkey)
     {
         // TODO proxy
-        $cookie = new FileCookieJar(__DIR__ . '/cookie_' . $userkey, true);
+        $cookie = new FileCookieJar(__DIR__ . '/cookies/' . $userkey, true);
         $this->client = new Client([
             'headers' => [
-                // 'Referer' => 'https://weibo.com',
                 'Referer' => 'https://mail.sina.com.cn/?from=mail',
                 'User-Agent' => 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.99 Safari/537.36'
             ],
@@ -63,26 +67,57 @@ class Weibologin
         $this->_userkey = $userkey;
     }
 
-    public function login($password)
+    public function login($password, $energyUrl = '')
     {
-        $loginUrl = $this->loginFirst($this->_userkey, $password);
-        return $this->loginSecond($loginUrl);
+        // 邮箱登录->微博登录->带登录信息进入能量榜
+        $predata = $this->getPrelogindata($this->_userkey);
+        echo json_encode($predata) . "\n";
+        $loginUrl = $this->loginFirst($predata, $password);
+        $userinfo = $this->loginSecond($loginUrl);
+        $this->uid = $userinfo['userinfo']['uniqueid'];
+        if ($energyUrl) {
+            $this->loginEnergy($energyUrl);
+        }
     }
 
-    private function loginFirst($userkey, $password)
+
+    public function loginEnergy($energyUrl)
     {
-        $json = $this->getPrelogindata($userkey);
-        // TODO remove
-        echo json_encode($json) . "\n";
+        $url = 'https://login.sina.com.cn/sso/login.php';
+        $params = [
+            'url' => $energyUrl,
+            '_rand' =>  microtime(true),
+            'gateway' => 1,
+            'service' => 'weibo',
+            'entry' => 'miniblog',
+            'useticket' => '0',
+            'returntype' => 'META',
+            'sudaref' => '',
+            '_client_version' => '0.6.23'
+        ];
+        $url .= '?' . http_build_query($params);
+        $response = $this->client->get($url);
+        $result = $response->getBody()->getContents();
+        $pattern = '/\("(.*?)"\)/';
+        preg_match($pattern, $result, $matches);
+        if ($matches) {
+            $url = $matches[1];
+            $response = $this->client->get($url);
+            $result = ['code' => $response->getStatusCode(),'content'=>$response->getBody()->getContents()];
+            echo json_encode($result)."\n";
+        }
+    }
+
+    private function loginFirst($predata, $password)
+    {
         // 发起第一次登录请求，获取登录请求跳转页redirect_login_url
         $url = 'https://login.sina.com.cn/sso/login.php?client=ssologin.js(v1.4.19)';
         $params = [
-            'su' => $userkey,
-            'servertime' => $json['servertime'],
-            'nonce' => $json['nonce'],
-            'sp' => $this->getPassword($password, $json['servertime'], $json['nonce'], $json['pubkey']),
-            'rsakv' => $json['rsakv'],
-            // 'entry' => 'freemail',
+            'su' => $this->_userkey,
+            'servertime' => $predata['servertime'],
+            'nonce' => $predata['nonce'],
+            'sp' => $this->getPassword($password, $predata['servertime'], $predata['nonce'], $predata['pubkey']),
+            'rsakv' => $predata['rsakv'],
             'entry' => 'cnmail',
             'gateway' => '1',
             'from' => '',
@@ -90,20 +125,15 @@ class Weibologin
             'qrcode_flag' => 'false',
             'useticket' => '0',
             'ssosimplelogin' => '1',
-            // 'pagerefer' => "http://login.sina.com.cn/sso/logout.php?entry=miniblog&r=http%3A%2F%2Fweibo.com%2Flogout.php%3Fbackurl",
             'vsnf' => '1',
-            // 'service' => 'miniblog',
             'service' => 'sso',
             'pwencode' => 'rsa2',
             'sr' => '1920*1080',
             'encoding' => 'UTF-8',
             'cdult' => '3',
-            // 'domain' => '*.weibo.cn',
             'domain' => 'sina.com.cn',
             'prelt' => '35',
-            // 'url' => 'https://weibo.com/ajaxlogin.php?framelogin=1&callback=parent.sinaSSOController.feedBackUrlCallBack',
             'returntype' => 'TEXT',
-            // 'returntype' => 'META',
         ];
         $response = $this->client->post($url, ['form_params' => $params]);
         if ($response->getStatusCode() != 200) {
@@ -111,20 +141,17 @@ class Weibologin
         }
         $result = $response->getBody()->getContents();
         $result = json_decode($result, true);
-        // $pattern = '/\("(.*?)"\)/';
-        // preg_match($pattern, $result, $matches);
         if ($result['retcode'] != 0) {
-            throw new \Exception('get redirect url failed, response content: '. json_encode($result));
+            throw new \Exception('get redirect url failed, response content: ' . json_encode($result));
         }
-
         return $result['crossDomainUrlList'][0];
     }
 
     private function loginSecond($url)
     {
-        echo $url."\n";
         // 发起第二次登录请求，再次获取登录请求跳转页arrURL
         $response = $this->client->get($url);
+        echo $response->getBody()->getContents()."\n";
         $json = str_replace(['(', ')', ';'], '', $response->getBody()->getContents());
         return json_decode($json, true);
     }
