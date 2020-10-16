@@ -41,14 +41,27 @@ class Weibohit
             'Referer' => $this->energyUrl,
             'User-Agent' => 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.99 Safari/537.36'
         ];
-
+        
         $this->_loginClient = new Weibologin($this->username);
-        if (!$this->_checkLogin()) {
-            $this->_loginClient->login($this->password, $this->energyUrl);
-        }
     }
 
-    private function _checkLogin()
+    private function _login()
+    {
+        // 登录
+        try {
+            // 检查加油卡返回成功说明已经登录，直接返回
+            if ($this->_checkSpt()) {
+                return true;
+            }
+            $this->_loginClient->login($this->password, $this->energyUrl);
+        } catch (\Exception $e) {
+            echo $e->getMessage() . "\n";
+            return false;
+        }
+        return true;
+    }
+
+    private function _checkSpt()
     {
         $url = "https://energy.tv.weibo.cn/aj/checkspt?suid=" . $this->_getsuid() . "&eid=" . $this->_geteid();
         $response = $this->_loginClient->client->get($url, ['headers' => $this->header]);
@@ -142,8 +155,11 @@ class Weibohit
      */
     public function incrspt($num = 1, $text = '')
     {
-        if ($this->spt == -1 && !$this->_checkLogin()) {
+        if (!$this->_login()) {
             $this->error('登录失败');
+        }
+        if ($this->spt == -1 && !$this->_checkSpt()) {
+            $this->error('加油卡信息获取失败');
         }
         if ($this->spt == 0) {
             $this->error('今日加油卡已用完');
@@ -184,6 +200,9 @@ class Weibohit
      */
     public function post($text)
     {
+        if (!$this->_login()) {
+            $this->error('登录失败');
+        }
         $url = 'https://m.weibo.cn/mblog';
         $ext = 'eid:' . $this->_geteid() . '|suid:' . $this->_getsuid() . '|from:tvenergy_index_star';
         $params = [
@@ -234,6 +253,9 @@ class Weibohit
      */
     public function repost($mid, $text = '')
     {
+        if (!$this->_login()) {
+            $this->error('登录失败');
+        }
         $url = 'https://energy.tv.weibo.cn/aj/repost';
 
         $eid = $this->_geteid();
@@ -286,6 +308,10 @@ class Weibohit
      */
     public function comment($mid, $text = '')
     {
+        if (!$this->_login()) {
+            $this->error('登录失败');
+        }
+        
         // $url = "https://weibo.com/aj/v6/comment/add?ajwvr=6&__rnd=1602694412076";
         $st = $this->_getst();
         if (!$st) {
@@ -328,6 +354,10 @@ class Weibohit
      */
     public function like($mid)
     {
+        if (!$this->_login()) {
+            $this->error('登录失败');
+        }
+
         $rnd = microtime(true) * 1000;
         $url = 'https://www.weibo.com/aj/v6/like/add?ajwvr=6&__rnd=' . $rnd;
         $params = [
@@ -364,6 +394,10 @@ class Weibohit
      */
     public function topicSign($tid)
     {
+        if (!$this->_login()) {
+            $this->error('登录失败');
+        }
+
         $url = 'https://weibo.com/p/aj/general/button';
         $params = [
             'ajwvr' => 6,
@@ -408,6 +442,10 @@ class Weibohit
      */
     public function topicPost($tid, $text)
     {
+        if (!$this->_login()) {
+            $this->error('登录失败');
+        }
+
         $rnd = microtime(true) * 1000;
         $url = 'https://weibo.com/p/aj/proxy?ajwvr=6&__rnd=' . $rnd;
         $params = [
@@ -452,6 +490,10 @@ class Weibohit
      */
     public function getTvinfo($tvurl)
     {
+        if (!$this->_login()) {
+            $this->error('登录失败');
+        }
+
         $basename = pathinfo($tvurl)['basename'];
         $oid = explode('?', $basename)[0];
         $url = "https://weibo.com/tv/api/component?page=/tv/show/" . $oid;
@@ -466,7 +508,8 @@ class Weibohit
         if ($response->getStatusCode() != '200') {
             return $this->error('request failed, content: ' . $result);
         }
-        echo $result;die;
+        echo $result;
+        die;
         $result = json_decode($result, true);
 
         if ($result['code'] != '100000') {
@@ -493,6 +536,10 @@ class Weibohit
      */
     public function getSelf()
     {
+        if (!$this->_login()) {
+            $this->error('登录失败');
+        }
+        
         $userinfo = $this->_loginClient->userinfo;
         if (!$userinfo) {
             $this->_loginClient->login($this->password);

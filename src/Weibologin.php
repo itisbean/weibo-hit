@@ -28,6 +28,8 @@ class Weibologin
      */
     protected $client;
 
+    static $cookieDir = __DIR__ . '/cookies/';
+
     public function __get($name)
     {
         return isset($this->$name) ? $this->$name : null;
@@ -37,7 +39,10 @@ class Weibologin
     {
         $userkey = self::getUsername($username);
         // TODO proxy
-        $cookie = new FileCookieJar(__DIR__ . '/cookies/' . $userkey, true);
+        if (!is_dir(self::$cookieDir)) {
+            self::createFolder(self::$cookieDir);
+        }
+        $cookie = new FileCookieJar(self::$cookieDir . $userkey, true);
         $this->client = new Client([
             'headers' => [
                 'Referer' => 'https://mail.sina.com.cn/?from=mail',
@@ -46,6 +51,19 @@ class Weibologin
             'cookies' => $cookie
         ]);
         $this->_userkey = $userkey;
+    }
+
+    public static function createFolder($folder)
+    {
+        // Test write-permissions for the folder and create/fix if necessary.
+        if ((is_dir($folder) && is_writable($folder))
+            || (!is_dir($folder) && mkdir($folder, 0755, true))
+            || chmod($folder, 0755)
+        ) {
+            return true;
+        } else {
+            return false;
+        }
     }
 
     public function login($password, $energyUrl = '')
@@ -84,7 +102,7 @@ class Weibologin
         if ($matches) {
             $url = $matches[1];
             $response = $this->client->get($url);
-            $result = ['code' => $response->getStatusCode(),'content'=>$response->getBody()->getContents()];
+            $result = ['code' => $response->getStatusCode(), 'content' => $response->getBody()->getContents()];
             // echo json_encode($result)."\n";
         }
     }

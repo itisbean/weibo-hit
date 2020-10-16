@@ -22,11 +22,11 @@ try {
     $whitInstance = \Weibohit\Weibohit::init($config);
 
     // 登录用户
-    // $whitInstance->getSelf();
+    $whitInstance->getSelf();
 
     // 播放信息
-    $tvurl = 'https://weibo.com/tv/show/1034:4559402053861384?from=old_pc_videoshow';
-    $whitInstance->getTvinfo($tvurl);
+    // $tvurl = 'https://weibo.com/tv/show/1034:4559402053861384?from=old_pc_videoshow';
+    // $whitInstance->getTvinfo($tvurl);
 
     // 送加油卡
     // $whitInstance->incrspt(1);
