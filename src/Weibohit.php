@@ -64,15 +64,15 @@ class Weibohit
 
     private function success($data = [])
     {
-        $return = json_encode(['ret' => true, 'data' => $data], JSON_UNESCAPED_UNICODE);
-        echo $return . "\n";
+        $return = ['ret' => true, 'data' => $data];
+        echo json_encode($return, JSON_UNESCAPED_UNICODE) . "\n";
         return $return;
     }
 
     private function error($msg = '')
     {
-        $return = json_encode(['ret' => false, 'msg' => $msg], JSON_UNESCAPED_UNICODE);
-        echo $return . "\n";
+        $return = ['ret' => false, 'msg' => $msg];
+        echo json_encode(['ret' => false, 'msg' => $msg], JSON_UNESCAPED_UNICODE) . "\n";
         return $return;
     }
 
@@ -138,7 +138,7 @@ class Weibohit
      * 送加油卡
      * @param integer $num 送卡数量
      * @param string $text 发送微博的文字内容
-     * @return bool
+     * @return array
      */
     public function incrspt($num = 1, $text = '')
     {
@@ -180,7 +180,7 @@ class Weibohit
     /**
      * 发微博
      * @param string $text 发送微博的文字内容
-     * @return bool
+     * @return array
      */
     public function post($text)
     {
@@ -230,7 +230,7 @@ class Weibohit
      * 转发
      * @param string $mid 原贴ID
      * @param string $text 发送微博的文字内容
-     * @return bool
+     * @return array
      */
     public function repost($mid, $text = '')
     {
@@ -282,7 +282,7 @@ class Weibohit
      * 评论帖子
      * @param string $mid 贴子ID
      * @param string $text 评论内容
-     * @return bool
+     * @return array
      */
     public function comment($mid, $text = '')
     {
@@ -324,7 +324,7 @@ class Weibohit
     /**
      * 点赞
      * @param string $mid 贴子ID
-     * @return bool
+     * @return array
      */
     public function like($mid)
     {
@@ -360,7 +360,7 @@ class Weibohit
     /**
      * 超话签到
      * @param string $tid 超话ID
-     * @return bool
+     * @return array
      */
     public function topicSign($tid)
     {
@@ -404,7 +404,7 @@ class Weibohit
      * 超话发贴
      * @param string $tid 超话ID
      * @param string $text 贴子内容
-     * @return void
+     * @return array
      */
     public function topicPost($tid, $text)
     {
@@ -448,7 +448,7 @@ class Weibohit
     /**
      * 微博视频信息
      * @param string $tvurl
-     * @return bool
+     * @return array
      */
     public function getTvinfo($tvurl)
     {
@@ -489,7 +489,7 @@ class Weibohit
 
     /**
      * 获取登录用户ID
-     * @return bool
+     * @return array
      */
     public function getSelf()
     {
