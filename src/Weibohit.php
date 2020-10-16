@@ -508,8 +508,6 @@ class Weibohit
         if ($response->getStatusCode() != '200') {
             return $this->error('request failed, content: ' . $result);
         }
-        echo $result;
-        die;
         $result = json_decode($result, true);
 
         if ($result['code'] != '100000') {
