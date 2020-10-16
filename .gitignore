@@ -1,4 +1,4 @@
 vendor/*
 launch.json
 composer.lock
-src/cookie_*
+src/cookies/*

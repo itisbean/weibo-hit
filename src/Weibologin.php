@@ -13,12 +13,6 @@ use phpseclib\Math\BigInteger;
  */
 class Weibologin
 {
-
-    /**
-     * @var array 单例对象
-     */
-    protected static $_instance = [];
-
     /**
      * @var string|null
      */
@@ -39,22 +33,9 @@ class Weibologin
         return isset($this->$name) ? $this->$name : null;
     }
 
-    /**
-     * @param null $username
-     * @return Weibologin
-     */
-    public static function init($username)
+    public function __construct($username)
     {
-        // 通过base64编码获取su的值
         $userkey = self::getUsername($username);
-        if (!isset(self::$_instance[$userkey])) {
-            self::$_instance[$userkey] = new self($userkey);
-        }
-        return self::$_instance[$userkey];
-    }
-
-    protected function __construct($userkey)
-    {
         // TODO proxy
         $cookie = new FileCookieJar(__DIR__ . '/cookies/' . $userkey, true);
         $this->client = new Client([
@@ -156,7 +137,7 @@ class Weibologin
         return json_decode($json, true);
     }
 
-    private static function getUsername($username)
+    public static function getUsername($username)
     {
         return base64_encode($username);
     }

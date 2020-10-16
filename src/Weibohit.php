@@ -14,20 +14,35 @@ class Weibohit
     // 能量榜主页
     private $energyUrl;
 
+    /**
+     * @var array 单例对象
+     */
+    protected static $_instance = [];
 
-    public function __construct($config = [])
+
+    public static function init($config = [])
+    {
+        // 通过base64编码获取su的值
+        $userkey = Weibologin::getUsername($config['username']);
+        if (!isset(self::$_instance[$userkey])) {
+            self::$_instance[$userkey] = new self($config);
+        }
+        return self::$_instance[$userkey];
+    }
+
+
+    protected function __construct($config = [])
     {
         foreach ($config as $key => $val) {
             $this->$key = $val;
         }
-
-        $this->_loginClient = Weibologin::init($this->username);
 
         $this->header = [
             'Referer' => $this->energyUrl,
             'User-Agent' => 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.99 Safari/537.36'
         ];
 
+        $this->_loginClient = new Weibologin($this->username);
         if (!$this->_checkLogin()) {
             $this->_loginClient->login($this->password, $this->energyUrl);
         }
@@ -95,21 +110,8 @@ class Weibohit
         return $header;
     }
 
-    private function _getst()
-    {
-        $url = 'https://m.weibo.cn/api/config';
-        $response = $this->_getclient()->get($url);
-        $result = $response->getBody()->getContents();
-        $result = json_decode($result, true);
-        if (!$result || $result['ok'] != 1 || !$result['data']['login']) {
-            return false;
-        }
-        return $result['data']['st'];
-    }
-
     /**
      * 查看榜单（实际上这个接口不需要登录）
-     * @param integer $suid 榜单明星uid
      * @param integer $type 0.默认24小时 大于0为n天
      * @return array
      */
@@ -125,17 +127,17 @@ class Weibohit
         $response = $this->_loginClient->client->get($url, ['headers' => $this->header]);
 
         $result = $response->getBody()->getContents();
-        $result = json_decode($result, true);
-
         if ($response->getStatusCode() != 200) {
-            return $this->_return(-1, $result);
+            return $this->error('request failed, content: ' . $result);
         }
-        return $this->_return(0, $result);
+        $result = json_decode($result, true);
+        return $this->success($result);
     }
 
     /**
      * 送加油卡
      * @param integer $num 送卡数量
+     * @param string $text 发送微博的文字内容
      * @return bool
      */
     public function incrspt($num = 1, $text = '')
@@ -177,6 +179,7 @@ class Weibohit
 
     /**
      * 发微博
+     * @param string $text 发送微博的文字内容
      * @return bool
      */
     public function post($text)
@@ -186,7 +189,7 @@ class Weibohit
         $params = [
             'content' => $text,
             'callback' => $this->energyUrl,
-            'luicode' => '40000095', // TODO
+            // 'luicode' => '40000095', // TODO
             'extparam' => $ext,
             'ext' => $ext
         ];
@@ -225,7 +228,9 @@ class Weibohit
 
     /**
      * 转发
-     * @return void
+     * @param string $mid 原贴ID
+     * @param string $text 发送微博的文字内容
+     * @return bool
      */
     public function repost($mid, $text = '')
     {
@@ -260,11 +265,26 @@ class Weibohit
         return $this->success();
     }
 
+
+    private function _getst()
+    {
+        $url = 'https://m.weibo.cn/api/config';
+        $response = $this->_getclient()->get($url);
+        $result = $response->getBody()->getContents();
+        $result = json_decode($result, true);
+        if (!$result || $result['ok'] != 1 || !$result['data']['login']) {
+            return false;
+        }
+        return $result['data']['st'];
+    }
+
     /**
      * 评论帖子
-     * @return void
+     * @param string $mid 贴子ID
+     * @param string $text 评论内容
+     * @return bool
      */
-    public function comment($mid, $text = '', $forward = 0)
+    public function comment($mid, $text = '')
     {
         // $url = "https://weibo.com/aj/v6/comment/add?ajwvr=6&__rnd=1602694412076";
         $st = $this->_getst();
@@ -301,27 +321,152 @@ class Weibohit
         ]);
     }
 
+    /**
+     * 点赞
+     * @param string $mid 贴子ID
+     * @return bool
+     */
     public function like($mid)
     {
+        $rnd = microtime(true) * 1000;
+        $url = 'https://www.weibo.com/aj/v6/like/add?ajwvr=6&__rnd=' . $rnd;
+        $params = [
+            'location' => 'page_100306_home',
+            'version' => 'mini',
+            'qid' => 'heart',
+            'mid' => $mid,
+            'loc' => 'profile',
+            'cuslike' => 1,
+            'floating' => 0,
+            '_t' => 0
+        ];
+        $response = $this->_getclient()->post($url, [
+            'headers' => $this->_getheader(['Referer' => 'https://www.weibo.com']),
+            'form_params' => $params
+        ]);
+        $result = $response->getBody()->getContents();
+        if ($response->getStatusCode() != '200') {
+            return $this->error('request failed, content: ' . $result);
+        }
+        $result = json_decode($result, true);
+        if ($result['code'] != '100000') {
+            return $this->error($result['msg']);
+        }
+        $data = $result['data'];
+        $action = $data['is_del'] ? '取消点赞' : '点赞';
+        return $this->success(['is_del' => $data['is_del'], 'action' => $action]);
     }
 
+    /**
+     * 超话签到
+     * @param string $tid 超话ID
+     * @return bool
+     */
+    public function topicSign($tid)
+    {
+        $url = 'https://weibo.com/p/aj/general/button';
+        $params = [
+            'ajwvr' => 6,
+            'api' => 'http://i.huati.weibo.com/aj/super/checkin',
+            'texta' => '签到',
+            'textb' => '已签到',
+            'status' => '0',
+            'id' => $tid,
+            'location' => 'page_100808_super_index',
+            'timezone' => 'GMT 0800',
+            'lang' => 'zh-cn',
+            'plat' => 'Win32',
+            'ua' => 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.142 Safari/537.36',
+            'screen' => '1920*1080',
+            '__rnd' => microtime(true) * 1000
+        ];
+        $url .= '?' . http_build_query($params);
+        $response = $this->_getclient()->get($url, ['headers' => $this->_getheader(["Referer" => "https://weibo.com/p/{$tid}/super_index"])]);
+        $result = $response->getBody()->getContents();
+        if (strpos($result, 'location.replace(') !== false) {
+            $pattern = '/location.replace\("(.*?)"\)/';
+            preg_match($pattern, $result, $matches);
+            if ($matches) {
+                $response = $this->_getclient()->get($matches[1]);
+            }
+        }
+        if ($response->getStatusCode() != '200') {
+            return $this->error('request failed, content: ' . $result);
+        }
+        $result = json_decode($result, true);
+        if ($result['code'] != '100000') {
+            return $this->error($result['msg']);
+        }
+        return $this->success($result['data']);
+    }
+
+    /**
+     * 超话发贴
+     * @param string $tid 超话ID
+     * @param string $text 贴子内容
+     * @return void
+     */
+    public function topicPost($tid, $text)
+    {
+        $rnd = microtime(true) * 1000;
+        $url = 'https://weibo.com/p/aj/proxy?ajwvr=6&__rnd=' . $rnd;
+        $params = [
+            'id' => $tid,
+            'domain' => '100808',
+            'module' => 'share_topic',
+            'title' => '发帖',
+            'content' => '',
+            'api_url' => 'http://i.huati.weibo.com/pcpage/super/publisher',
+            // 'check_url' => "http://i.huati.weibo.com/aj/superpublishauth&pageid={$tid}&uid=" . $this->_loginClient->userinfo['uniqueid'],
+            'location' => 'page_100808_super_index',
+            'text' => $text,
+            'pdetail' => $tid,
+            'sync_wb' => 1,
+            'isReEdit' => 'false',
+            'pub_source' => 'page_2',
+            'api' => 'http://i.huati.weibo.com/pcpage/operation/publisher/sendcontent?sign=super&page_id=' . $tid,
+            'longtext' => 1,
+            // 'topic_id' => '1022:' . $tid,
+            'pub_type' => 'dialog',
+            '_t' => '0'
+        ];
+        $response = $this->_getclient()->post($url, [
+            'headers' => $this->_getheader(["Referer" => "https://weibo.com/p/{$tid}/super_index"]),
+            'form_params' => $params
+        ]);
+        $result = $response->getBody()->getContents();
+        if ($response->getStatusCode() != '200') {
+            return $this->error('request failed, content: ' . $result);
+        }
+        $result = json_decode($result, true);
+        if ($result['code'] != '100000') {
+            return $this->error($result['msg']);
+        }
+        return $this->success($result['data']);
+    }
+
+    /**
+     * 微博视频信息
+     * @param string $tvurl
+     * @return bool
+     */
     public function getTvinfo($tvurl)
     {
         $basename = pathinfo($tvurl)['basename'];
         $oid = explode('?', $basename)[0];
         $url = "https://weibo.com/tv/api/component?page=/tv/show/" . $oid;
 
+        $data = ['Component_Play_Playinfo' => ['oid' => $oid]];
         $response = $this->_getclient()->post($url, [
             'headers' => $this->_getheader(['Referer' => $tvurl]),
-            'form_params' => [
-                'data' => '{"Component_Play_Playinfo":{"oid":' . $oid . '}}'
-            ]
+            'form_params' => ['data' => json_encode($data)]
         ]);
 
         $result = $response->getBody()->getContents();
         if ($response->getStatusCode() != '200') {
             return $this->error('request failed, content: ' . $result);
         }
+        echo $result;die;
         $result = json_decode($result, true);
 
         if ($result['code'] != '100000') {
@@ -336,10 +481,16 @@ class Weibohit
             'oid' => $data['oid'],
             'play_count' => $data['play_count'],
             'reposts_count' => $data['reposts_count'],
-            'title' => $data['title']
+            'title' => $data['title'],
+            'date' => $data['date'],
+            'url_short' => 'url_short'
         ]);
     }
 
+    /**
+     * 获取登录用户ID
+     * @return bool
+     */
     public function getSelf()
     {
         $userinfo = $this->_loginClient->userinfo;
