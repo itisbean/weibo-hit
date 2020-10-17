@@ -20,6 +20,10 @@ class Weibohit
     protected static $_instance = [];
 
 
+    /**
+     * @param array $config ['username'=>'','password'=>'','energyUrl'=>'','suid'=>'']
+     * @return Weibohit
+     */
     public static function init($config = [])
     {
         // 通过base64编码获取su的值
@@ -41,7 +45,7 @@ class Weibohit
             'Referer' => $this->energyUrl,
             'User-Agent' => 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.99 Safari/537.36'
         ];
-        
+
         $this->_loginClient = new Weibologin($this->username);
     }
 
@@ -50,12 +54,12 @@ class Weibohit
         // 登录
         try {
             // 检查加油卡返回成功说明已经登录，直接返回
-            if ($this->_checkSpt()) {
-                return true;
+            if (!$this->_checkSpt()) {
+                $this->_loginClient->login($this->password, $this->energyUrl);
             }
-            $this->_loginClient->login($this->password, $this->energyUrl);
         } catch (\Exception $e) {
-            echo $e->getMessage() . "\n";
+            // echo $e->getMessage() . "\n";
+            $this->_loginerror = $e->getMessage();
             return false;
         }
         return true;
@@ -137,14 +141,15 @@ class Weibohit
             // 默认24小时
             $url = "https://energy.tv.weibo.cn/aj/trend?suid=" . $this->_getsuid() . "&eid=" . $this->_geteid() . "&type=trend_hours&count=24";
         }
-        $response = $this->_loginClient->client->get($url, ['headers' => $this->header]);
 
-        $result = $response->getBody()->getContents();
-        if ($response->getStatusCode() != 200) {
-            return $this->error('request failed, content: ' . $result);
+        try {
+            $response = $this->_loginClient->client->get($url, ['headers' => $this->header]);
+            $result = $response->getBody()->getContents();
+            $result = json_decode($result, true);
+            return $this->success($result);
+        } catch (\GuzzleHttp\Exception\ClientException $e) {
+            return $this->error('request failed, error: ' . $e->getMessage());
         }
-        $result = json_decode($result, true);
-        return $this->success($result);
     }
 
     /**
@@ -156,13 +161,13 @@ class Weibohit
     public function incrspt($num = 1, $text = '')
     {
         if (!$this->_login()) {
-            $this->error('登录失败');
+            return $this->error("login failed: " . $this->_loginerror);
         }
         if ($this->spt == -1 && !$this->_checkSpt()) {
-            $this->error('加油卡信息获取失败');
+            return $this->error('加油卡信息获取失败');
         }
         if ($this->spt == 0) {
-            $this->error('今日加油卡已用完');
+            return $this->error('今日加油卡已用完');
         }
 
         // 加油
@@ -179,18 +184,18 @@ class Weibohit
             $params['send_wb']  = '1';
             $params['send_text'] = $text;
         }
-        $response = $this->_getclient()->post($url, ['headers' => $this->_getheader(), 'form_params' => $params]);
-        $result = $response->getBody()->getContents();
 
-        if ($response->getStatusCode() != '200') {
-            return $this->error('request failed, content: ' . $result);
+        try {
+            $response = $this->_getclient()->post($url, ['headers' => $this->_getheader(), 'form_params' => $params]);
+            $result = $response->getBody()->getContents();
+            $result = json_decode($result, true);
+            if ($result['code'] != '100000') {
+                return $this->error($result['msg']);
+            }
+            return $this->success();
+        } catch (\GuzzleHttp\Exception\ClientException $e) {
+            return $this->error('request failed, error: ' . $e->getMessage());
         }
-        $result = json_decode($result, true);
-
-        if ($result['code'] != '100000') {
-            return $this->error($result['msg']);
-        }
-        return $this->success();
     }
 
     /**
@@ -201,7 +206,7 @@ class Weibohit
     public function post($text)
     {
         if (!$this->_login()) {
-            $this->error('登录失败');
+            return $this->error("login failed: " . $this->_loginerror);
         }
         $url = 'https://m.weibo.cn/mblog';
         $ext = 'eid:' . $this->_geteid() . '|suid:' . $this->_getsuid() . '|from:tvenergy_index_star';
@@ -229,20 +234,20 @@ class Weibohit
             ],
             'st' => $st
         ];
-        $response = $this->_getclient()->post($url, [
-            'form_params' => $params
-        ]);
-        $result = $response->getBody()->getContents();
 
-        if ($response->getStatusCode() != '200') {
-            return $this->error('request failed, content: ' . $result);
+        try {
+            $response = $this->_getclient()->post($url, [
+                'form_params' => $params
+            ]);
+            $result = $response->getBody()->getContents();
+            $result = json_decode($result, true);
+            if ($result['ok'] != 1) {
+                return $this->error($result['msg']);
+            }
+            return $this->success($result['id']);
+        } catch (\GuzzleHttp\Exception\ClientException $e) {
+            return $this->error('request failed, error: ' . $e->getMessage());
         }
-        $result = json_decode($result, true);
-
-        if ($result['ok'] != 1) {
-            return $this->error($result['msg']);
-        }
-        return $this->success($result['id']);
     }
 
     /**
@@ -254,7 +259,7 @@ class Weibohit
     public function repost($mid, $text = '')
     {
         if (!$this->_login()) {
-            $this->error('登录失败');
+            return $this->error("login failed: " . $this->_loginerror);
         }
         $url = 'https://energy.tv.weibo.cn/aj/repost';
 
@@ -268,23 +273,22 @@ class Weibohit
             'suid' => $suid,
             'page_type' => 'tvenergy_index_star'
         ];
-
         $referer = "https://energy.tv.weibo.cn/repost?eid={$eid}&suid={$suid}&page_type=tvenergy_index_star";
-        $response = $this->_getclient()->post($url, [
-            'headers' => $this->_getheader(['Referer' => $referer]),
-            'form_params' => $params
-        ]);
-        $result = $response->getBody()->getContents();
 
-        if ($response->getStatusCode() != '200') {
-            return $this->error('request failed, content: ' . $result);
+        try {
+            $response = $this->_getclient()->post($url, [
+                'headers' => $this->_getheader(['Referer' => $referer]),
+                'form_params' => $params
+            ]);
+            $result = $response->getBody()->getContents();
+            $result = json_decode($result, true);
+            if ($result['code'] != '100000') {
+                return $this->error($result['msg']);
+            }
+            return $this->success();
+        } catch (\GuzzleHttp\Exception\ClientException $e) {
+            return $this->error('request failed, error: ' . $e->getMessage());
         }
-        $result = json_decode($result, true);
-
-        if ($result['code'] != '100000') {
-            return $this->error($result['msg']);
-        }
-        return $this->success();
     }
 
 
@@ -309,42 +313,41 @@ class Weibohit
     public function comment($mid, $text = '')
     {
         if (!$this->_login()) {
-            $this->error('登录失败');
+            return $this->error("login failed: " . $this->_loginerror);
         }
-        
+
         // $url = "https://weibo.com/aj/v6/comment/add?ajwvr=6&__rnd=1602694412076";
         $st = $this->_getst();
         if (!$st) {
             return $this->error('get st failed.');
         }
-
         $url = 'https://m.weibo.cn/api/comments/create';
-        $response = $this->_getclient()->post($url, [
-            'form_params' => [
-                'mid' => $mid,
-                'content' => $text,
-                'st' => $st
-            ]
-        ]);
-        $result = $response->getBody()->getContents();
 
-        if ($response->getStatusCode() != '200') {
-            return $this->error('request failed, content: ' . $result);
+        try {
+            $response = $this->_getclient()->post($url, [
+                'form_params' => [
+                    'mid' => $mid,
+                    'content' => $text,
+                    'st' => $st
+                ]
+            ]);
+            $result = $response->getBody()->getContents();
+            $result = json_decode($result, true);
+            if ($result['ok'] != 1) {
+                return $this->error($result['msg']);
+            }
+            $data = $result['data'];
+            return $this->success([
+                'id' => $data['id'],
+                'created_at' => strtotime($data['created_at']),
+                'user' => [
+                    'id' => $data['user']['id'],
+                    'screen_name' => $data['user']['screen_name']
+                ]
+            ]);
+        } catch (\GuzzleHttp\Exception\ClientException $e) {
+            return $this->error('request failed, error: ' . $e->getMessage());
         }
-        $result = json_decode($result, true);
-
-        if ($result['ok'] != 1) {
-            return $this->error($result['msg']);
-        }
-        $data = $result['data'];
-        return $this->success([
-            'id' => $data['id'],
-            'created_at' => strtotime($data['created_at']),
-            'user' => [
-                'id' => $data['user']['id'],
-                'screen_name' => $data['user']['screen_name']
-            ]
-        ]);
     }
 
     /**
@@ -355,7 +358,7 @@ class Weibohit
     public function like($mid)
     {
         if (!$this->_login()) {
-            $this->error('登录失败');
+            return $this->error("login failed: " . $this->_loginerror);
         }
 
         $rnd = microtime(true) * 1000;
@@ -370,21 +373,23 @@ class Weibohit
             'floating' => 0,
             '_t' => 0
         ];
-        $response = $this->_getclient()->post($url, [
-            'headers' => $this->_getheader(['Referer' => 'https://www.weibo.com']),
-            'form_params' => $params
-        ]);
-        $result = $response->getBody()->getContents();
-        if ($response->getStatusCode() != '200') {
-            return $this->error('request failed, content: ' . $result);
+
+        try {
+            $response = $this->_getclient()->post($url, [
+                'headers' => $this->_getheader(['Referer' => 'https://www.weibo.com']),
+                'form_params' => $params
+            ]);
+            $result = $response->getBody()->getContents();
+            $result = json_decode($result, true);
+            if ($result['code'] != '100000') {
+                return $this->error($result['msg']);
+            }
+            $data = $result['data'];
+            $action = $data['is_del'] ? '取消点赞' : '点赞';
+            return $this->success(['is_del' => $data['is_del'], 'action' => $action]);
+        } catch (\GuzzleHttp\Exception\ClientException $e) {
+            return $this->error('request failed, error: ' . $e->getMessage());
         }
-        $result = json_decode($result, true);
-        if ($result['code'] != '100000') {
-            return $this->error($result['msg']);
-        }
-        $data = $result['data'];
-        $action = $data['is_del'] ? '取消点赞' : '点赞';
-        return $this->success(['is_del' => $data['is_del'], 'action' => $action]);
     }
 
     /**
@@ -395,7 +400,7 @@ class Weibohit
     public function topicSign($tid)
     {
         if (!$this->_login()) {
-            $this->error('登录失败');
+            return $this->error("login failed: " . $this->_loginerror);
         }
 
         $url = 'https://weibo.com/p/aj/general/button';
@@ -415,23 +420,28 @@ class Weibohit
             '__rnd' => microtime(true) * 1000
         ];
         $url .= '?' . http_build_query($params);
-        $response = $this->_getclient()->get($url, ['headers' => $this->_getheader(["Referer" => "https://weibo.com/p/{$tid}/super_index"])]);
-        $result = $response->getBody()->getContents();
-        if (strpos($result, 'location.replace(') !== false) {
-            $pattern = '/location.replace\("(.*?)"\)/';
-            preg_match($pattern, $result, $matches);
-            if ($matches) {
-                $response = $this->_getclient()->get($matches[1]);
+
+        try {
+            $response = $this->_getclient()->get($url, [
+                'headers' => $this->_getheader(["Referer" => "https://weibo.com/p/{$tid}/super_index"])
+            ]);
+            $result = $response->getBody()->getContents();
+            if (strpos($result, 'location.replace(') !== false) {
+                $pattern = '/location.replace\("(.*?)"\)/';
+                preg_match($pattern, $result, $matches);
+                if ($matches) {
+                    $response = $this->_getclient()->get($matches[1]);
+                }
+                $result = json_decode($result, true);
+                if ($result['code'] != '100000') {
+                    return $this->error($result['msg']);
+                }
+                return $this->success($result['data']);
             }
+        } catch (\GuzzleHttp\Exception\ClientException $e) {
+            return $this->error('request failed, error: ' . $e->getMessage());
         }
-        if ($response->getStatusCode() != '200') {
-            return $this->error('request failed, content: ' . $result);
-        }
-        $result = json_decode($result, true);
-        if ($result['code'] != '100000') {
-            return $this->error($result['msg']);
-        }
-        return $this->success($result['data']);
+        return $this->error('unkowns error.');
     }
 
     /**
@@ -443,7 +453,7 @@ class Weibohit
     public function topicPost($tid, $text)
     {
         if (!$this->_login()) {
-            $this->error('登录失败');
+            return $this->error("login failed: " . $this->_loginerror);
         }
 
         $rnd = microtime(true) * 1000;
@@ -468,19 +478,22 @@ class Weibohit
             'pub_type' => 'dialog',
             '_t' => '0'
         ];
-        $response = $this->_getclient()->post($url, [
-            'headers' => $this->_getheader(["Referer" => "https://weibo.com/p/{$tid}/super_index"]),
-            'form_params' => $params
-        ]);
-        $result = $response->getBody()->getContents();
-        if ($response->getStatusCode() != '200') {
-            return $this->error('request failed, content: ' . $result);
+
+
+        try {
+            $response = $this->_getclient()->post($url, [
+                'headers' => $this->_getheader(["Referer" => "https://weibo.com/p/{$tid}/super_index"]),
+                'form_params' => $params
+            ]);
+            $result = $response->getBody()->getContents();
+            $result = json_decode($result, true);
+            if ($result['code'] != '100000') {
+                return $this->error($result['msg']);
+            }
+            return $this->success($result['data']);
+        } catch (\GuzzleHttp\Exception\ClientException $e) {
+            return $this->error('request failed, error: ' . $e->getMessage());
         }
-        $result = json_decode($result, true);
-        if ($result['code'] != '100000') {
-            return $this->error($result['msg']);
-        }
-        return $this->success($result['data']);
     }
 
     /**
@@ -491,41 +504,40 @@ class Weibohit
     public function getTvinfo($tvurl)
     {
         if (!$this->_login()) {
-            $this->error('登录失败');
+            return $this->error("login failed: " . $this->_loginerror);
         }
 
         $basename = pathinfo($tvurl)['basename'];
         $oid = explode('?', $basename)[0];
         $url = "https://weibo.com/tv/api/component?page=/tv/show/" . $oid;
-
         $data = ['Component_Play_Playinfo' => ['oid' => $oid]];
-        $response = $this->_getclient()->post($url, [
-            'headers' => $this->_getheader(['Referer' => $tvurl]),
-            'form_params' => ['data' => json_encode($data)]
-        ]);
 
-        $result = $response->getBody()->getContents();
-        if ($response->getStatusCode() != '200') {
-            return $this->error('request failed, content: ' . $result);
+        try {
+            $response = $this->_getclient()->post($url, [
+                'headers' => $this->_getheader(['Referer' => $tvurl]),
+                'form_params' => ['data' => json_encode($data)]
+            ]);
+            $result = $response->getBody()->getContents();
+            $result = json_decode($result, true);
+            if ($result['code'] != '100000') {
+                return $this->error($result['msg']);
+            }
+            $data = $result['data']['Component_Play_Playinfo'];
+            return $this->success([
+                'attitudes_count' => $data['attitudes_count'],
+                'comments_count' => $data['comments_count'],
+                'duration_time' => $data['duration_time'],
+                'mid' => $data['mid'],
+                'oid' => $data['oid'],
+                'play_count' => $data['play_count'],
+                'reposts_count' => $data['reposts_count'],
+                'title' => $data['title'],
+                'date' => $data['date'],
+                'url_short' => $data['url_short']
+            ]);
+        } catch (\GuzzleHttp\Exception\ClientException $e) {
+            return $this->error('request failed, error: ' . $e->getMessage());
         }
-        $result = json_decode($result, true);
-
-        if ($result['code'] != '100000') {
-            return $this->error($result['msg']);
-        }
-        $data = $result['data']['Component_Play_Playinfo'];
-        return $this->success([
-            'attitudes_count' => $data['attitudes_count'],
-            'comments_count' => $data['comments_count'],
-            'duration_time' => $data['duration_time'],
-            'mid' => $data['mid'],
-            'oid' => $data['oid'],
-            'play_count' => $data['play_count'],
-            'reposts_count' => $data['reposts_count'],
-            'title' => $data['title'],
-            'date' => $data['date'],
-            'url_short' => 'url_short'
-        ]);
     }
 
     /**
@@ -534,10 +546,6 @@ class Weibohit
      */
     public function getSelf()
     {
-        if (!$this->_login()) {
-            $this->error('登录失败');
-        }
-        
         $userinfo = $this->_loginClient->userinfo;
         if (!$userinfo) {
             $this->_loginClient->login($this->password);
