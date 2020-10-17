@@ -82,14 +82,14 @@ class Weibohit
     private function success($data = [])
     {
         $return = ['ret' => true, 'data' => $data];
-        echo json_encode($return, JSON_UNESCAPED_UNICODE) . "\n";
+        // echo json_encode($return, JSON_UNESCAPED_UNICODE) . "\n";
         return $return;
     }
 
     private function error($msg = '')
     {
         $return = ['ret' => false, 'msg' => $msg];
-        echo json_encode(['ret' => false, 'msg' => $msg], JSON_UNESCAPED_UNICODE) . "\n";
+        // echo json_encode(['ret' => false, 'msg' => $msg], JSON_UNESCAPED_UNICODE) . "\n";
         return $return;
     }
 
