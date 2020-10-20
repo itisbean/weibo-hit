@@ -54,7 +54,6 @@ class Weibologin
             'cookies' => $cookie
         ];
 
-        $proxy = Storage::getInstance()->get('Config', 'proxy');
         if (!empty($this->config['proxy'])) {
             $proxy = $this->config['proxy'];
             $config['proxy'] = [
@@ -116,7 +115,6 @@ class Weibologin
 
     private function _download($url, $filePath = '')
     {
-        
         //curl
         $ch = curl_init();
         $timeout = 60;
@@ -187,13 +185,13 @@ class Weibologin
         ];
 
         if ($predata['showpin'] == 1) {
-            if (empty($this->config['doorimgPath'])) {
+            if (empty($this->config['doorImgPath'])) {
                 throw new \Exception("login doorcode, 需要验证码，请配置验证码信息");
             }
             // 需要验证码
             $randInt = rand(pow(10, (8 - 1)), pow(10, 8) - 1);
             $imgUrl = 'http://login.sina.com.cn/cgi/pin.php?r=' . $randInt . '&s=0&p=' . $predata['pcid'];
-            $this->_download($imgUrl, $this->config['doorimgPath']);
+            $this->_download($imgUrl, $this->config['doorImgPath']);
             // 保存param信息
             $params['pcid'] = $predata['pcid'];
             Storage::getInstance()->set('Logindata', Weibologin::getUsername($this->userkey), $params);

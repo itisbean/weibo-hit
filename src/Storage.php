@@ -33,7 +33,7 @@ class Storage
     public function set($tbl, $key, $data) 
     {
         // 表不存在 
-        $count = $this->_database->count($tbl, null, null, ['key' => $key]);
+        $count = $this->_database->count($tbl, ['key' => $key]);
         if ($count === false) {
             $this->_database->create($tbl, ['key' => 'text', 'data' => 'text']);
             
