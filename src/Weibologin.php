@@ -16,7 +16,7 @@ class Weibologin
     /**
      * @var string|null
      */
-    protected $_userkey;
+    protected $userkey;
 
     /**
      * @var string|null
@@ -28,7 +28,12 @@ class Weibologin
      */
     protected $client;
 
-    static $cookieDir = __DIR__ . '/cookies/';
+    private $loginUrl = 'https://login.sina.com.cn/sso/login.php?client=ssologin.js(v1.4.19)';
+
+
+    protected $config;
+
+    static $cookieDir = __DIR__ . '/db/';
 
     public function __get($name)
     {
@@ -38,19 +43,28 @@ class Weibologin
     public function __construct($username)
     {
         $userkey = self::getUsername($username);
-        // TODO proxy
-        if (!is_dir(self::$cookieDir)) {
-            self::createFolder(self::$cookieDir);
-        }
+        $this->config = Storage::getInstance()->get('Config', $userkey);
+
         $cookie = new FileCookieJar(self::$cookieDir . $userkey, true);
-        $this->client = new Client([
+        $config = [
             'headers' => [
                 'Referer' => 'https://mail.sina.com.cn/?from=mail',
                 'User-Agent' => 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.99 Safari/537.36'
             ],
             'cookies' => $cookie
-        ]);
-        $this->_userkey = $userkey;
+        ];
+
+        $proxy = Storage::getInstance()->get('Config', 'proxy');
+        if (!empty($this->config['proxy'])) {
+            $proxy = $this->config['proxy'];
+            $config['proxy'] = [
+                'http' => 'http://' . $proxy['ip'] . ':' . $proxy['port'],
+                'https' => 'https://' . $proxy['ip'] . ':' . $proxy['port']
+            ];
+        }
+
+        $this->client = new Client($config);
+        $this->userkey = $userkey;
     }
 
     public static function createFolder($folder)
@@ -69,16 +83,54 @@ class Weibologin
     public function login($password, $energyUrl = '')
     {
         // 邮箱登录->微博登录->带登录信息进入能量榜
-        $predata = $this->getPrelogindata($this->_userkey);
-        // echo json_encode($predata) . "\n";
-        $loginUrl = $this->loginFirst($predata, $password);
-        $userinfo = $this->loginSecond($loginUrl);
+        $predata = $this->getPrelogindata($this->userkey);
+        $crossDomainUrl = $this->loginFirst($predata, $password);
+        $userinfo = $this->loginSecond($crossDomainUrl);
         $this->userinfo = $userinfo['userinfo'];
         if ($energyUrl) {
             $this->loginEnergy($energyUrl);
         }
     }
 
+    public function relogin($doorcode, $energyUrl = '')
+    {
+        $params = Storage::getInstance()->get('Logindata', Weibologin::getUsername($this->userkey));
+        if (!$params) {
+            throw new \Exception("登录信息获取失败，请重新登录");
+        }
+        $params['door'] = $doorcode;
+
+        $response = $this->client->post($this->loginUrl, ['form_params' => $params]);
+        $result = $response->getBody()->getContents();
+        $result = json_decode($result, true);
+        if ($result['retcode'] != 0) {
+            throw new \Exception('get redirect url failed, response content: ' . json_encode($result));
+        }
+
+        $userinfo = $this->loginSecond($result['crossDomainUrlList'][0]);
+        $this->userinfo = $userinfo['userinfo'];
+        if ($energyUrl) {
+            $this->loginEnergy($energyUrl);
+        }
+    }
+
+    private function _download($url, $filePath = '')
+    {
+        
+        //curl
+        $ch = curl_init();
+        $timeout = 60;
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $timeout);
+        curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4); //要加上，不然报错：Could not resolve host 
+        $fp = fopen($filePath, 'w+');
+        curl_setopt($ch, CURLOPT_FILE, $fp);
+        curl_exec($ch);
+        if ($error = curl_error($ch)) {
+        }
+        curl_close($ch);
+    }
 
     public function loginEnergy($energyUrl)
     {
@@ -110,9 +162,8 @@ class Weibologin
     private function loginFirst($predata, $password)
     {
         // 发起第一次登录请求，获取登录请求跳转页redirect_login_url
-        $url = 'https://login.sina.com.cn/sso/login.php?client=ssologin.js(v1.4.19)';
         $params = [
-            'su' => $this->_userkey,
+            'su' => $this->userkey,
             'servertime' => $predata['servertime'],
             'nonce' => $predata['nonce'],
             'sp' => $this->getPassword($password, $predata['servertime'], $predata['nonce'], $predata['pubkey']),
@@ -134,10 +185,22 @@ class Weibologin
             'prelt' => '35',
             'returntype' => 'TEXT',
         ];
-        $response = $this->client->post($url, ['form_params' => $params]);
-        if ($response->getStatusCode() != 200) {
-            throw new \Exception("login first request failed, http code: " . $response->getStatusCode());
+
+        if ($predata['showpin'] == 1) {
+            if (empty($this->config['doorimgPath'])) {
+                throw new \Exception("login doorcode, 需要验证码，请配置验证码信息");
+            }
+            // 需要验证码
+            $randInt = rand(pow(10, (8 - 1)), pow(10, 8) - 1);
+            $imgUrl = 'http://login.sina.com.cn/cgi/pin.php?r=' . $randInt . '&s=0&p=' . $predata['pcid'];
+            $this->_download($imgUrl, $this->config['doorimgPath']);
+            // 保存param信息
+            $params['pcid'] = $predata['pcid'];
+            Storage::getInstance()->set('Logindata', Weibologin::getUsername($this->userkey), $params);
+            throw new \Exception("login doorcode, 请输入验证码信息");
         }
+
+        $response = $this->client->post($this->loginUrl, ['form_params' => $params]);
         $result = $response->getBody()->getContents();
         $result = json_decode($result, true);
         if ($result['retcode'] != 0) {

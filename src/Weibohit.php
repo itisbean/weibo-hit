@@ -21,7 +21,7 @@ class Weibohit
 
 
     /**
-     * @param array $config ['username'=>'','password'=>'','energyUrl'=>'','suid'=>'']
+     * @param array $config ['username' => '', 'password' => '', 'energyUrl' => '', 'suid' => '', proxy => '', 'doorImgPath' => '']
      * @return Weibohit
      */
     public static function init($config = [])
@@ -46,6 +46,10 @@ class Weibohit
             'User-Agent' => 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.99 Safari/537.36'
         ];
 
+        // 保存用户配置信息
+        $userkey = Weibologin::getUsername($config['username']);
+        Storage::getInstance()->set('Config', $userkey, $config);
+
         $this->_loginClient = new Weibologin($this->username);
     }
 
@@ -61,6 +65,17 @@ class Weibohit
             // echo $e->getMessage() . "\n";
             $this->_loginerror = $e->getMessage();
             return false;
+        }
+        return true;
+    }
+
+    public function relogin($doorcode)
+    {
+        // 登录
+        try {
+            $this->_loginClient->relogin($doorcode, $this->energyUrl);
+        } catch (\Exception $e) {
+            return $this->error($e->getMessage());
         }
         return true;
     }

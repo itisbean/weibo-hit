@@ -16,13 +16,18 @@ try {
         // 能量榜主页
         'energyUrl' => 'https://energy.tv.weibo.cn/e/10574/index',
         // 打榜的明星id
-        'suid' => '1303977362'
+        'suid' => '1303977362',
+        // 验证码图片的保存地址
+        'doorImgPath' => '/data/dony/doorimg.png',
+        // 如果需要代理
+        // 'proxy' => ['ip' => '175.43.57.17', 'port' => '9999'],
     ];
-    // $whitInstance = new \Weibohit\Weibohit($username, $password);
+    
     $whitInstance = \Weibohit\Weibohit::init($config);
 
     // 登录用户
-    $whitInstance->getSelf();
+    $user = $whitInstance->getSelf();
+    var_dump($user);
 
     // 播放信息
     // $tvurl = 'https://weibo.com/tv/show/1034:4559402053861384?from=old_pc_videoshow';

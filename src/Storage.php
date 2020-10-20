@@ -19,10 +19,9 @@ class Storage
         ]);
     }
 
-    private function clone()
-    {
-    }
-
+    /**
+     * @return Storage
+     */
     public static function getInstance()
     {
         if (self::$_instance == null) {
@@ -31,17 +30,27 @@ class Storage
         return self::$_instance;
     }
 
-    public function add($code, $hash)
+    public function set($tbl, $key, $data) 
     {
-        $this->_database->insert("ocr", [
-            "code" => $code,
-            "hash" => implode("", $hash)
-        ]);
+        // 表不存在 
+        $count = $this->_database->count($tbl, null, null, ['key' => $key]);
+        if ($count === false) {
+            $this->_database->create($tbl, ['key' => 'text', 'data' => 'text']);
+            
+        } 
+        if ($count > 0) {
+            $this->_database->update($tbl, ['key' => $key, 'data' => $data], ['key' => $key]);
+        } else {
+            $this->_database->insert($tbl, ['key' => $key, 'data' => $data]);
+        }
     }
 
-    public function get($code = null)
+    public function get($tbl, $key)
     {
-        // $arr = null && $code && $arr = ["code" => $code];
-        return $this->_database->select("ocr", ["hash", "code"]);
+        $data = $this->_database->select($tbl, 'data', ['key' => $key]);
+        if ($data) {
+            return unserialize($data[0]);
+        }
+        return '';
     }
 }
