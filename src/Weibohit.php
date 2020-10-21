@@ -563,8 +563,12 @@ class Weibohit
     {
         $userinfo = $this->_loginClient->userinfo;
         if (!$userinfo) {
-            $this->_loginClient->login($this->password);
-            $userinfo = $this->_loginClient->userinfo;
+            try {
+                $this->_loginClient->login($this->password);
+                $userinfo = $this->_loginClient->userinfo;
+            } catch (\Exception $e) {
+                return $this->error($e->getMessage());
+            }
         }
         return $this->success($userinfo);
     }
