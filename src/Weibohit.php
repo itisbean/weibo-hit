@@ -77,7 +77,7 @@ class Weibohit
         } catch (\Exception $e) {
             return $this->error($e->getMessage());
         }
-        return true;
+        return $this->success();
     }
 
     private function _checkSpt()
