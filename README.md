@@ -5,4 +5,4 @@ composer require itisbean/weibohit -vvv
 <!-- composer dumpautoload -o -->
 
 
-Demo: [https://o8.cn/kjwKsG](https://o8.cn/kjwKsG) 左上角➡️拉開
+Demo: [https://prettycrazyjoey.cn/oursong?referer=joey](https://prettycrazyjoey.cn/oursong?referer=joey) 左上角➡️拉開
