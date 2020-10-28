@@ -19,6 +19,8 @@ class Weibohit
      */
     protected static $_instance = [];
 
+    private $spt = -1;
+
 
     /**
      * @param array $config ['username' => '', 'password' => '', 'energyUrl' => '', 'suid' => '', proxy => '', 'doorImgPath' => '']
@@ -58,7 +60,8 @@ class Weibohit
         // 登录
         try {
             // 检查加油卡返回成功说明已经登录，直接返回
-            if (!$this->_checkSpt()) {
+            // if (!$this->_checkSpt()) {
+            if (!$this->_getst()) {
                 $this->_loginClient->login($this->password, $this->energyUrl);
             }
         } catch (\Exception $e) {
@@ -90,7 +93,6 @@ class Weibohit
             $this->spt = $result['data'];
             return true;
         }
-        $this->spt = -1;
         return false;
     }
 
