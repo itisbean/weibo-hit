@@ -449,12 +449,12 @@ class Weibohit
                 if ($matches) {
                     $response = $this->_getclient()->get($matches[1]);
                 }
-                $result = json_decode($result, true);
-                if ($result['code'] != '100000') {
-                    return $this->error($result['msg']);
-                }
-                return $this->success($result['data']);
             }
+            $result = json_decode($result, true);
+            if ($result['code'] != '100000') {
+                return $this->error($result['msg']);
+            }
+            return $this->success($result['data']);
         } catch (\GuzzleHttp\Exception\ClientException $e) {
             return $this->error('request failed, error: ' . $e->getMessage());
         }
