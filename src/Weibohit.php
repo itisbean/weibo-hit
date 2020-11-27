@@ -278,25 +278,36 @@ class Weibohit
         if (!$this->_login()) {
             return $this->error("login failed: " . $this->_loginerror);
         }
-        $url = 'https://energy.tv.weibo.cn/aj/repost';
 
         $eid = $this->_geteid();
         $suid = $this->_getsuid();
-        $params = [
-            'mid' => $mid,
-            'text' => $text,
-            'follow' => '',
-            'eid' => $eid,
-            'suid' => $suid,
-            'page_type' => 'tvenergy_index_star'
-        ];
-        $referer = "https://energy.tv.weibo.cn/repost?eid={$eid}&suid={$suid}&page_type=tvenergy_index_star";
+        if ($suid) {
+            $url = 'https://energy.tv.weibo.cn/aj/repost';
+            $params = [
+                'mid' => $mid,
+                'text' => $text,
+                'follow' => '',
+                'eid' => $eid,
+                'suid' => $suid,
+                'page_type' => 'tvenergy_index_star'
+            ];
+            $referer = "https://energy.tv.weibo.cn/repost?eid={$eid}&suid={$suid}&page_type=tvenergy_index_star";
+        } else {
+            $url = 'https://weibo.com/aj/v6/mblog/forward?ajwvr=6&domain=100306&__rnd=' . microtime(true);
+            $params = [
+                'mid' => $mid,
+                'reason' => $text,
+                'location' => 'page_100306_home',
+            ];
+            $referer = "https://weibo.com/joeyyung?is_all=1";
+        }
 
+        $options = ['form_params' => $params];
+        if (isset($referer)) {
+            $options['headers'] = $this->_getheader(['Referer' => $referer]);
+        }
         try {
-            $response = $this->_getclient()->post($url, [
-                'headers' => $this->_getheader(['Referer' => $referer]),
-                'form_params' => $params
-            ]);
+            $response = $this->_getclient()->post($url, $options);
             $result = $response->getBody()->getContents();
             $result = json_decode($result, true);
             if ($result['code'] != '100000') {
