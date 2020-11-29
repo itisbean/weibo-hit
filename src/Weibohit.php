@@ -78,8 +78,8 @@ class Weibohit
         $url = 'https://weibo.com/aj/onoff/getstatus?ajwvr=6&sid=0&__rnd=' . microtime(true);
         try {
             $response = $this->_getclient()->get($url);
-            $result = $response->getBody()->getContents();
-            $result = json_decode($result, true);
+            $content = $response->getBody()->getContents();
+            $result = json_decode($content, true);
             if (!$result || $result['code'] != '100000') {
                 return false;
             }
@@ -104,8 +104,8 @@ class Weibohit
     {
         $url = "https://energy.tv.weibo.cn/aj/checkspt?suid=" . $this->_getsuid() . "&eid=" . $this->_geteid();
         $response = $this->_loginClient->client->get($url, ['headers' => $this->header]);
-        $result = $response->getBody()->getContents();
-        $result = json_decode($result, true);
+        $content = $response->getBody()->getContents();
+        $result = json_decode($content, true);
         if ($result && $result['code'] == '100000') {
             $this->spt = $result['data'];
             return true;
@@ -176,8 +176,8 @@ class Weibohit
 
         try {
             $response = $this->_loginClient->client->get($url, ['headers' => $this->header]);
-            $result = $response->getBody()->getContents();
-            $result = json_decode($result, true);
+            $content = $response->getBody()->getContents();
+            $result = json_decode($content, true);
             return $this->success($result);
         } catch (\GuzzleHttp\Exception\ClientException $e) {
             return $this->error('request failed, error: ' . $e->getMessage());
@@ -219,8 +219,11 @@ class Weibohit
 
         try {
             $response = $this->_getclient()->post($url, ['headers' => $this->_getheader(), 'form_params' => $params]);
-            $result = $response->getBody()->getContents();
-            $result = json_decode($result, true);
+            $content = $response->getBody()->getContents();
+            $result = json_decode($content, true);
+            if (!$result && mb_strpos($content, '请先验证身份') !== false) {
+                return $this->error('账号异常');
+            }
             if ($result['code'] != '100000') {
                 return $this->error($result['msg']);
             }
@@ -256,8 +259,11 @@ class Weibohit
                 'form_params' => $params,
                 'headers' => $this->_getheader()
             ]);
-            $result = $response->getBody()->getContents();
-            $result = json_decode($result, true);
+            $content = $response->getBody()->getContents();
+            $result = json_decode($content, true);
+            if (!$result && mb_strpos($content, '请先验证身份') !== false) {
+                return $this->error('账号异常');
+            }
             if ($result['code'] != '100000') {
                 return $this->error($result['msg']);
             }
@@ -315,8 +321,8 @@ class Weibohit
             $response = $this->_getclient()->post($url, [
                 'form_params' => $params
             ]);
-            $result = $response->getBody()->getContents();
-            $result = json_decode($result, true);
+            $content = $response->getBody()->getContents();
+            $result = json_decode($content, true);
             if ($result['ok'] != 1) {
                 return $this->error($result['msg']);
             }
@@ -368,8 +374,11 @@ class Weibohit
         }
         try {
             $response = $this->_getclient()->post($url, $options);
-            $result = $response->getBody()->getContents();
-            $result = json_decode($result, true);
+            $content = $response->getBody()->getContents();
+            $result = json_decode($content, true);
+            if (!$result && mb_strpos($content, '请先验证身份') !== false) {
+                return $this->error('账号异常');
+            }
             if ($result['code'] != '100000') {
                 return $this->error($result['msg']);
             }
@@ -384,8 +393,8 @@ class Weibohit
     {
         $url = 'https://m.weibo.cn/api/config';
         $response = $this->_getclient()->get($url);
-        $result = $response->getBody()->getContents();
-        $result = json_decode($result, true);
+        $content = $response->getBody()->getContents();
+        $result = json_decode($content, true);
         if (!$result || $result['ok'] != 1 || !$result['data']['login']) {
             return false;
         }
@@ -413,8 +422,11 @@ class Weibohit
                 'form_params' => $params,
                 'headers' => $this->_getheader()
             ]);
-            $result = $response->getBody()->getContents();
-            $result = json_decode($result, true);
+            $content = $response->getBody()->getContents();
+            $result = json_decode($content, true);
+            if (!$result && mb_strpos($content, '请先验证身份') !== false) {
+                return $this->error('账号异常');
+            }
             if ($result['code'] != '100000') {
                 return $this->error($result['msg']);
             }
@@ -455,8 +467,8 @@ class Weibohit
                 ],
                 'headers' => $this->_getheader(['referer' => 'https://m.weibo.cn'])
             ]);
-            $result = $response->getBody()->getContents();
-            $result = json_decode($result, true);
+            $content = $response->getBody()->getContents();
+            $result = json_decode($content, true);
             if ($result['ok'] != 1) {
                 return $this->error($result['msg']);
             }
@@ -508,8 +520,11 @@ class Weibohit
                 'headers' => $this->_getheader(),
                 'form_params' => $params
             ]);
-            $result = $response->getBody()->getContents();
-            $result = json_decode($result, true);
+            $content = $response->getBody()->getContents();
+            $result = json_decode($content, true);
+            if (!$result && mb_strpos($content, '请先验证身份') !== false) {
+                return $this->error('账号异常');
+            }
             if ($result['code'] != '100000') {
                 return $this->error($result['msg']);
             }
@@ -554,15 +569,18 @@ class Weibohit
             $response = $this->_getclient()->get($url, [
                 'headers' => $this->_getheader(["Referer" => "https://weibo.com/p/{$tid}/super_index"])
             ]);
-            $result = $response->getBody()->getContents();
-            if (strpos($result, 'location.replace(') !== false) {
+            $content = $response->getBody()->getContents();
+            if (strpos($content, 'location.replace(') !== false) {
                 $pattern = '/location.replace\("(.*?)"\)/';
-                preg_match($pattern, $result, $matches);
+                preg_match($pattern, $content, $matches);
                 if ($matches) {
                     $response = $this->_getclient()->get($matches[1]);
                 }
             }
-            $result = json_decode($result, true);
+            $result = json_decode($content, true);
+            if (!$result && mb_strpos($content, '请先验证身份') !== false) {
+                return $this->error('账号异常');
+            }
             if ($result['code'] != '100000') {
                 return $this->error($result['msg']);
             }
@@ -612,8 +630,11 @@ class Weibohit
                 'headers' => $this->_getheader(["Referer" => "https://weibo.com/p/{$tid}/super_index"]),
                 'form_params' => $params
             ]);
-            $result = $response->getBody()->getContents();
-            $result = json_decode($result, true);
+            $content = $response->getBody()->getContents();
+            $result = json_decode($content, true);
+            if (!$result && mb_strpos($content, '请先验证身份') !== false) {
+                return $this->error('账号异常');
+            }
             if ($result['code'] != '100000') {
                 return $this->error($result['msg']);
             }
@@ -644,8 +665,11 @@ class Weibohit
                 'headers' => $this->_getheader(['Referer' => $tvurl]),
                 'form_params' => ['data' => json_encode($data)]
             ]);
-            $result = $response->getBody()->getContents();
-            $result = json_decode($result, true);
+            $content = $response->getBody()->getContents();
+            $result = json_decode($content, true);
+            if (!$result && mb_strpos($content, '请先验证身份') !== false) {
+                return $this->error('账号异常');
+            }
             if ($result['code'] != '100000') {
                 return $this->error($result['msg']);
             }
