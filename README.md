@@ -53,7 +53,7 @@ $whitInstance->post($text);
 public function repost($mid, $text = '');
 ```
 
-### comment
+### comment from pc
 
 ```php
 /**
@@ -63,6 +63,19 @@ public function repost($mid, $text = '');
  * @return array
  */
 public function comment($mid, $text = '');
+```
+
+### Comment from mobile
+
+```php
+/**
+ * 移動端評論帖子
+ * @param string $mid
+ * @param string $text
+ * @param boolean $istry
+ * @return array
+ */
+public function mComment($mid, $text, $istry = false);
 ```
 
 ### like or cancel like

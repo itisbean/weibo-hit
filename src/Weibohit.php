@@ -44,7 +44,7 @@ class Weibohit
         }
 
         $this->header = [
-            'Referer' => $this->energyUrl,
+            'Referer' => $this->energyUrl ?: 'https://weibo.com',
             'User-Agent' => 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.99 Safari/537.36'
         ];
 
@@ -60,13 +60,30 @@ class Weibohit
         // 登录
         try {
             // 检查加油卡返回成功说明已经登录，直接返回
-            // if (!$this->_checkSpt()) {
-            if (!$this->_getst()) {
+            if (!$this->_checklogin()) {
                 $this->_loginClient->login($this->password, $this->energyUrl);
             }
         } catch (\Exception $e) {
-            // echo $e->getMessage() . "\n";
             $this->_loginerror = $e->getMessage();
+            return false;
+        }
+        return true;
+    }
+
+    private function _checklogin()
+    {
+        if ($this->energyUrl) {
+            return $this->_getst();
+        }
+        $url = 'https://weibo.com/aj/onoff/getstatus?ajwvr=6&sid=0&__rnd=' . microtime(true);
+        try {
+            $response = $this->_getclient()->get($url);
+            $result = $response->getBody()->getContents();
+            $result = json_decode($result, true);
+            if (!$result || $result['code'] != '100000') {
+                return false;
+            }
+        } catch (\GuzzleHttp\Exception\ClientException $e) {
             return false;
         }
         return true;
@@ -99,14 +116,12 @@ class Weibohit
     private function success($data = [])
     {
         $return = ['ret' => true, 'data' => $data, 'msg' => 'success'];
-        // echo json_encode($return, JSON_UNESCAPED_UNICODE) . "\n";
         return $return;
     }
 
     private function error($msg = '')
     {
         $return = ['ret' => false, 'msg' => $msg, 'data' => null];
-        // echo json_encode(['ret' => false, 'msg' => $msg], JSON_UNESCAPED_UNICODE) . "\n";
         return $return;
     }
 
@@ -225,15 +240,60 @@ class Weibohit
         if (!$this->_login()) {
             return $this->error("login failed: " . $this->_loginerror);
         }
+        if ($this->energyUrl) {
+            return $this->_energyPost($text);
+        }
+        // 非能量榜入口
+        $url = 'https://weibo.com/aj/mblog/add?ajwvr=6';
+        $params = [
+            'location' => 'v6_content_home',
+            'text' => $text,
+            'pub_source' => 'page_2',
+            'pub_type' => 'dialog',
+        ];
+        try {
+            $response = $this->_getclient()->post($url, [
+                'form_params' => $params,
+                'headers' => $this->_getheader()
+            ]);
+            $result = $response->getBody()->getContents();
+            $result = json_decode($result, true);
+            if ($result['code'] != '100000') {
+                return $this->error($result['msg']);
+            }
+            $pattern = '#mid="(.*?)"#i';
+            if ($result['data']['html']) {
+                preg_match($pattern, $result['data']['html'], $matches);
+                if ($matches) {
+                    return $this->success($matches[1]);
+                }
+            }
+        } catch (\GuzzleHttp\Exception\ClientException $e) {
+            return $this->error('request failed, client error: ' . $e->getMessage());
+        } catch (\GuzzleHttp\Exception\ServerException $e) {
+            return $this->error('request failed, server error: ' . $e->getMessage());
+        } catch (\Exception $e) {
+            return $this->error('request failed, other error: ' . $e->getMessage());
+        }
+        return $this->success();
+    }
+
+    /**
+     * 從能量榜入口發博
+     * @param string $text
+     * @return array
+     */
+    private function _energyPost($text)
+    {
         $url = 'https://m.weibo.cn/mblog';
         $ext = 'eid:' . $this->_geteid() . '|suid:' . $this->_getsuid() . '|from:tvenergy_index_star';
         $params = [
             'content' => $text,
             'callback' => $this->energyUrl,
-            // 'luicode' => '40000095', // TODO
             'extparam' => $ext,
             'ext' => $ext
         ];
+
         $url .= '?' . http_build_query($params);
         $response = $this->_getclient()->get($url);
         $result = $response->getBody()->getContents();
@@ -251,7 +311,6 @@ class Weibohit
             ],
             'st' => $st
         ];
-
         try {
             $response = $this->_getclient()->post($url, [
                 'form_params' => $params
@@ -266,6 +325,7 @@ class Weibohit
             return $this->error('request failed, error: ' . $e->getMessage());
         }
     }
+
 
     /**
      * 转发
@@ -343,21 +403,57 @@ class Weibohit
         if (!$this->_login()) {
             return $this->error("login failed: " . $this->_loginerror);
         }
+        $url = "https://weibo.com/aj/v6/comment/add?ajwvr=6";
+        $params = [
+            'mid' => $mid,
+            'content' => $text,
+        ];
+        try {
+            $response = $this->_getclient()->post($url, [
+                'form_params' => $params,
+                'headers' => $this->_getheader()
+            ]);
+            $result = $response->getBody()->getContents();
+            $result = json_decode($result, true);
+            if ($result['code'] != '100000') {
+                return $this->error($result['msg']);
+            }
+            return $this->success();
+        } catch (\GuzzleHttp\Exception\ClientException $e) {
+            return $this->error('request failed, client error: ' . $e->getMessage());
+        } catch (\GuzzleHttp\Exception\ServerException $e) {
+            return $this->error('request failed, server error: ' . $e->getMessage());
+        } catch (\Exception $e) {
+            return $this->error('request failed, other error: ' . $e->getMessage());
+        }
+    }
 
-        // $url = "https://weibo.com/aj/v6/comment/add?ajwvr=6&__rnd=1602694412076";
+    /**
+     * 移動端評論帖子
+     * @param string $mid
+     * @param string $text
+     * @param boolean $istry
+     * @return array
+     */
+    public function mComment($mid, $text, $istry = false) 
+    {
         $st = $this->_getst();
         if (!$st) {
+            if (!$istry) {
+                $this->_loginClient->loginEnergy('https://m.weibo.cn');
+                return $this->mComment($mid, $text, true);
+            }
             return $this->error('get st failed.');
         }
         $url = 'https://m.weibo.cn/api/comments/create';
-
         try {
             $response = $this->_getclient()->post($url, [
                 'form_params' => [
                     'mid' => $mid,
                     'content' => $text,
                     'st' => $st
-                ]
+                ],
+                'headers' => $this->_getheader(['referer' => 'https://m.weibo.cn'])
             ]);
             $result = $response->getBody()->getContents();
             $result = json_decode($result, true);
@@ -374,9 +470,14 @@ class Weibohit
                 ]
             ]);
         } catch (\GuzzleHttp\Exception\ClientException $e) {
-            return $this->error('request failed, error: ' . $e->getMessage());
+            return $this->error('request failed, client error: ' . $e->getMessage());
+        } catch (\GuzzleHttp\Exception\ServerException $e) {
+            return $this->error('request failed, server error: ' . $e->getMessage());
+        } catch (\Exception $e) {
+            return $this->error('request failed, other error: ' . $e->getMessage());
         }
     }
+
 
     /**
      * 点赞
@@ -404,7 +505,7 @@ class Weibohit
 
         try {
             $response = $this->_getclient()->post($url, [
-                'headers' => $this->_getheader(['Referer' => 'https://www.weibo.com']),
+                'headers' => $this->_getheader(),
                 'form_params' => $params
             ]);
             $result = $response->getBody()->getContents();
@@ -493,7 +594,6 @@ class Weibohit
             'title' => '发帖',
             'content' => '',
             'api_url' => 'http://i.huati.weibo.com/pcpage/super/publisher',
-            // 'check_url' => "http://i.huati.weibo.com/aj/superpublishauth&pageid={$tid}&uid=" . $this->_loginClient->userinfo['uniqueid'],
             'location' => 'page_100808_super_index',
             'text' => $text,
             'pdetail' => $tid,
@@ -502,7 +602,6 @@ class Weibohit
             'pub_source' => 'page_2',
             'api' => 'http://i.huati.weibo.com/pcpage/operation/publisher/sendcontent?sign=super&page_id=' . $tid,
             'longtext' => 1,
-            // 'topic_id' => '1022:' . $tid,
             'pub_type' => 'dialog',
             '_t' => '0'
         ];

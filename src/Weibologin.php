@@ -153,7 +153,6 @@ class Weibologin
             $url = $matches[1];
             $response = $this->client->get($url);
             $result = ['code' => $response->getStatusCode(), 'content' => $response->getBody()->getContents()];
-            // echo json_encode($result)."\n";
         }
     }
 
@@ -211,7 +210,6 @@ class Weibologin
     {
         // 发起第二次登录请求，再次获取登录请求跳转页arrURL
         $response = $this->client->get($url);
-        // echo $response->getBody()->getContents()."\n";
         $json = str_replace(['(', ')', ';'], '', $response->getBody()->getContents());
         return json_decode($json, true);
     }
