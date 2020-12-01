@@ -83,7 +83,7 @@ class Weibohit
             if (!$result || $result['code'] != '100000') {
                 return false;
             }
-        } catch (\GuzzleHttp\Exception\ClientException $e) {
+        } catch (\Exception $e) {
             return false;
         }
         return true;
@@ -180,7 +180,11 @@ class Weibohit
             $result = json_decode($content, true);
             return $this->success($result);
         } catch (\GuzzleHttp\Exception\ClientException $e) {
-            return $this->error('request failed, error: ' . $e->getMessage());
+            return $this->error('request failed, client error: ' . $e->getMessage());
+        } catch (\GuzzleHttp\Exception\ServerException $e) {
+            return $this->error('request failed, server error: ' . $e->getMessage());
+        } catch (\Exception $e) {
+            return $this->error('request failed, other error: ' . $e->getMessage());
         }
     }
 
@@ -230,6 +234,10 @@ class Weibohit
             return $this->success();
         } catch (\GuzzleHttp\Exception\ClientException $e) {
             return $this->error('request failed, error: ' . $e->getMessage());
+        } catch (\GuzzleHttp\Exception\ServerException $e) {
+            return $this->error('request failed, server error: ' . $e->getMessage());
+        } catch (\Exception $e) {
+            return $this->error('request failed, other error: ' . $e->getMessage());
         }
     }
 
@@ -329,6 +337,10 @@ class Weibohit
             return $this->success($result['id']);
         } catch (\GuzzleHttp\Exception\ClientException $e) {
             return $this->error('request failed, error: ' . $e->getMessage());
+        } catch (\GuzzleHttp\Exception\ServerException $e) {
+            return $this->error('request failed, server error: ' . $e->getMessage());
+        } catch (\Exception $e) {
+            return $this->error('request failed, other error: ' . $e->getMessage());
         }
     }
 
@@ -385,6 +397,10 @@ class Weibohit
             return $this->success();
         } catch (\GuzzleHttp\Exception\ClientException $e) {
             return $this->error('request failed, error: ' . $e->getMessage());
+        } catch (\GuzzleHttp\Exception\ServerException $e) {
+            return $this->error('request failed, server error: ' . $e->getMessage());
+        } catch (\Exception $e) {
+            return $this->error('request failed, other error: ' . $e->getMessage());
         }
     }
 
@@ -533,6 +549,10 @@ class Weibohit
             return $this->success(['is_del' => $data['is_del'], 'action' => $action]);
         } catch (\GuzzleHttp\Exception\ClientException $e) {
             return $this->error('request failed, error: ' . $e->getMessage());
+        } catch (\GuzzleHttp\Exception\ServerException $e) {
+            return $this->error('request failed, server error: ' . $e->getMessage());
+        } catch (\Exception $e) {
+            return $this->error('request failed, other error: ' . $e->getMessage());
         }
     }
 
@@ -587,6 +607,10 @@ class Weibohit
             return $this->success($result['data']);
         } catch (\GuzzleHttp\Exception\ClientException $e) {
             return $this->error('request failed, error: ' . $e->getMessage());
+        } catch (\GuzzleHttp\Exception\ServerException $e) {
+            return $this->error('request failed, server error: ' . $e->getMessage());
+        } catch (\Exception $e) {
+            return $this->error('request failed, other error: ' . $e->getMessage());
         }
         return $this->error('unkowns error.');
     }
@@ -641,6 +665,10 @@ class Weibohit
             return $this->success($result['data']);
         } catch (\GuzzleHttp\Exception\ClientException $e) {
             return $this->error('request failed, error: ' . $e->getMessage());
+        } catch (\GuzzleHttp\Exception\ServerException $e) {
+            return $this->error('request failed, server error: ' . $e->getMessage());
+        } catch (\Exception $e) {
+            return $this->error('request failed, other error: ' . $e->getMessage());
         }
     }
 
@@ -688,6 +716,10 @@ class Weibohit
             ]);
         } catch (\GuzzleHttp\Exception\ClientException $e) {
             return $this->error('request failed, error: ' . $e->getMessage());
+        } catch (\GuzzleHttp\Exception\ServerException $e) {
+            return $this->error('request failed, server error: ' . $e->getMessage());
+        } catch (\Exception $e) {
+            return $this->error('request failed, other error: ' . $e->getMessage());
         }
     }
 
