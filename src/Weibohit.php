@@ -55,7 +55,7 @@ class Weibohit
         $this->_loginClient = new Weibologin($this->username);
     }
 
-    private function _login()
+    public function _login()
     {
         // 登录
         try {
@@ -67,7 +67,7 @@ class Weibohit
             $this->_loginerror = $e->getMessage();
             return false;
         }
-        return true;
+        return $this->_loginClient->client;
     }
 
     private function _checklogin()
